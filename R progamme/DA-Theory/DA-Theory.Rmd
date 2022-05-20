@@ -1,0 +1,337 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r}
+library(dplyr)
+library(readr)
+library(plotly)
+library(ggplot2)
+```
+
+
+```{r}
+# Dataset COVID --> https://www.kaggle.com/datasets/sudalairajkumar/covid19-in-usa 
+
+" Context
+Data is obtained from COVID-19 Tracking project and NYTimes. Sincere thanks to them for making it available to the public.
+
+Coronaviruses are a large family of viruses which may cause illness in animals or humans. In humans, several coronaviruses are known to cause respiratory infections ranging from the common cold to more severe diseases such as Middle East Respiratory Syndrome (MERS) and Severe Acute Respiratory Syndrome (SARS). The most recently discovered coronavirus causes coronavirus disease COVID-19 - World Health Organization
+
+The number of new cases are increasing day by day around the world. This dataset has information from 50 US states and the District of Columbia at daily level."
+```
+
+```{r}
+setwd("C:/Users/saksh/OneDrive/Desktop/R progamme/DA-Theory")
+dataset <-read.csv("us_counties_covid19_daily.csv")
+```
+
+## Data Exploration
+```{r}
+str(dataset)
+```
+```{r}
+View(dataset)
+```
+
+```{r}
+## Getting to know more about categorical data ##
+length(unique(dataset$county))
+```
+```{r}
+length(unique(dataset$date))
+```
+```{r}
+length(unique(dataset$state))
+```
+#### Knowing number of empty cells in each column 
+```{r}
+
+for(i in names(dataset))
+{
+  print(c(i,sum(is.na(dataset[[i]]))))
+}
+```
+
+#### Removing rows with empty columns ##
+```{r}
+
+dataset <- na.omit(dataset) 
+```
+
+#### Length of dataset after reoving some rows with empty space 
+```{r}
+nrow(dataset)
+```
+
+#### Grouping data by state and taking into account all the death(sum)
+```{r}
+newdata <- group_by(dataset, state)
+DeathsStates <- summarize(newdata,TotalDeaths = sum(deaths, na.rm=TRUE))
+
+DeathsStates
+```
+
+
+```{r}
+View(DeathsStates)
+```
+
+#### Grouping data by state and taking into account all the cases(sum)
+```{r}
+newdata <- group_by(dataset, state)
+CasesStates <- summarize(newdata,TotalCases = sum(cases, na.rm=TRUE))
+
+View(CasesStates)
+CasesStates
+```
+
+#### Merging the above 2 according to state in such a way that dataframe will contain state,totalcases,totaldeaths
+```{r}
+TotalDeathsandCasesStates <- merge(CasesStates,DeathsStates)
+TotalDeathsandCasesStates
+
+View(TotalDeathsandCasesStates)
+```
+
+### Interactive Barchart 
+```{r}
+# Telling about total Deaths happened in each state
+fig <- plot_ly(data = DeathsStates,type = "bar",x = ~state,y = ~TotalDeaths,marker = list(color = 'red'))
+fig <- fig %>% layout(title = "State vs TotalDeaths")
+fig
+```
+##### This tells regarding Total Deaths in each state
+
+### Grouped Barchart
+```{r}
+## This give side by side by side information regarding 2 important topics i.e Cases Tot and Death tot according to the state which will help to know out of the effected cases how many are dieing and how many are recovering
+
+## As the Number of cases are far more than deaths hence dividing it by 20
+newdata<-mutate(TotalDeathsandCasesStates,TotalCases = TotalCases/20)
+
+### Grouped Bar chart ###
+fig_bar <- plot_ly(data=newdata,type="bar",x=~state,y=~TotalCases,name="CasesTot")
+fig_bar <- fig_bar%>% add_trace(y=~TotalDeaths,name="DeathsTot")
+
+
+fig_bar <- fig_bar%>%layout(barmode='group',annotations = list(
+ list(text = "Number of cases is divided via 20")))
+fig_bar
+```
+
+### Stacked Barchart
+```{r}
+
+## This give side by side by side information regarding 2 important topics i.e Cases Tot and Death tot according to the state which will help to know out of the effected cases how many are dieing and how many are recovering
+
+fig_bar <- plot_ly(data=newdata,type="bar",x=~state,y=~TotalCases,name="CasesTot")
+fig_bar <- fig_bar%>% add_trace(y=~TotalDeaths,name="DeathsTot")
+fig_bar <- fig_bar%>%layout(barmode='stack',annotations = list(text = "Number of cases is divided via 20"))
+fig_bar
+```
+
+
+### Line plot
+```{r}
+# This shows the trend between the TotalCases and TotalDeaths in each state
+ggplot(data = TotalDeathsandCasesStates,
+mapping = aes(x = TotalCases, y = TotalDeaths,size = TotalCases,color = TotalDeaths)) +
+geom_smooth(method = "lm")
+```
+
+### Scatter Plot
+```{r}
+
+# This tells us information regarding total deaths and total cases
+
+ggplot(data = TotalDeathsandCasesStates,
+mapping = aes(x = TotalCases, y = TotalDeaths,size = TotalCases,color = TotalDeaths)) +
+geom_point(alpha = .7) 
+```
+### Animating scatterplot
+```{r}
+library(gganimate)
+library(gifski)
+
+
+### Animate --> Scatter Plot
+
+scatter_plot_animate = ggplot(data=TotalDeathsandCasesStates, aes(TotalCases, TotalDeaths)) + geom_point() +                
+                       transition_states(state)
+
+animate(scatter_plot_animate, renderer = gifski_renderer())
+```
+
+### Data containing total cases on each date
+```{r}
+
+newdata <- group_by(dataset, date)
+DeathsdateSum <- summarize(newdata,TotalDeaths = sum(deaths, na.rm=TRUE))
+DeathsdateSum
+```
+
+### Time Series
+```{r}
+## This is a time series plot showing day to day increase/decrease in Total Deaths
+
+fig <- plot_ly(DeathsdateSum, type = 'scatter', mode = 'lines')%>%
+  add_trace(x = ~date, y = ~TotalDeaths)%>%
+  layout(showlegend = F)
+fig <- fig %>%
+  layout(
+         xaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         yaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         plot_bgcolor='#e5ecf6', width = 900)
+
+fig
+
+```
+
+### Density plot
+```{r}
+## Shows average density of deaths each day ## 
+ggplot(DeathsdateSum,
+aes(x = TotalDeaths)) +
+geom_density(alpha = 0.4,fill = "Cornflowerblue") +
+labs(title = "Deaths distribution according to dates")
+```
+
+### Time Series
+```{r}
+### Data containing total Cases on each date ###
+newdata <- group_by(dataset, date)
+CasesdateSum <- summarize(newdata,TotalCases = sum(cases, na.rm=TRUE))
+CasesdateSum
+
+### Time Series ###
+
+## This is a time series plot showing day to day increase/decrease in Total Cases
+fig <- plot_ly(CasesdateSum, type = 'scatter', mode = 'lines')%>%
+  add_trace(x = ~date, y = ~TotalCases)%>%
+  layout(showlegend = F)
+fig <- fig %>%
+  layout(
+         xaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         yaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         plot_bgcolor='#e5ecf6', width = 900)
+
+fig
+
+```
+
+### Density plot
+```{r}
+## Shows average density of deaths each day ## 
+ggplot(CasesdateSum,
+aes(x = TotalCases)) +
+geom_density(alpha = 0.4,fill = "Cornflowerblue") +
+labs(title = "Cases each day frequency")
+```
+
+
+```{r}
+### This tells total number of Deaths from each state ###
+
+### As there are many states hence reducing the numbers via considering states whose contribution is lesser than 2% as others
+TotalDeathsandCasesStates
+
+## Data containing all the states having contribution of cases to the whole greater than 2% ##
+newdata <- select(filter(TotalDeathsandCasesStates,TotalDeaths/sum(TotalDeaths) > 0.02),state,TotalDeaths)
+
+## Data containing all the states having contribution of cases to the whole greater than 2% ##
+sumOTHERdeaths = sum(filter(TotalDeathsandCasesStates,TotalDeaths/sum(TotalDeaths) <= 0.02)$TotalDeaths)
+
+newdata[nrow(newdata) + 1,] <- c("Others",sumOTHERdeaths)
+newdata
+```
+
+### Piechart
+```{r}
+### Piechart ###
+piechart <- plot_ly(newdata) %>%add_pie(newdata, labels = ~state, values = ~TotalDeaths,type = 'pie')
+
+piechart
+
+```
+
+### DonutChart
+```{r}
+### This tells total number of Deaths from each state ###
+DonutChart <- plot_ly(newdata) %>%add_pie(newdata, labels = ~state, values = ~TotalDeaths,type = 'pie',hole = 0.5)
+DonutChart
+```
+```{r}
+### This tells total number of Cases from each state ###
+
+### As there are many states hence reducing the numbers via considering states whose contribution is lesser than 2% as others
+TotalDeathsandCasesStates
+
+## Data containing all the states having contribution of cases to the whole greater than 2% ##
+newdata <- select(filter(TotalDeathsandCasesStates,TotalCases/sum(TotalCases) > 0.02),state,TotalCases)
+
+## Data containing all the states having contribution of cases to the whole greater than 2% ##
+sumOTHERCases = sum(filter(TotalDeathsandCasesStates,TotalDeaths/sum(TotalDeaths) <= 0.02)$TotalCases)
+
+newdata[nrow(newdata) + 1,] <- c("Others",sumOTHERCases)
+newdata
+
+```
+
+### Piechart
+```{r}
+### This tells total number of Cases from each state ###
+piechart <- plot_ly(newdata) %>%add_pie(newdata, labels = ~state, values = ~TotalCases,type = 'pie')
+
+piechart
+```
+
+### Donut Chart
+```{r}
+
+DonutChart <- plot_ly(newdata) %>%add_pie(newdata, labels = ~state, values = ~TotalCases,type = 'pie',hole = 0.5)
+DonutChart
+```
+
+```{r}
+## Tells regarding Places where need to focus more
+ggplot(TotalDeathsandCasesStates, aes(x=TotalCases, y=TotalDeaths)) +
+ geom_boxplot(color ="blue")+
+ labs(x="TotalCases", y="TotalDeaths")+
+ ggtitle("box plot of Total Cases vs TotalDeaths ")
+```
+
+```{r}
+View(TotalDeathsandCasesStates)
+```
+
+```{r}
+## Tells regarding Places where need to focus more
+ggplot(TotalDeathsandCasesStates, aes(x=TotalCases, y=TotalDeaths)) +
+ geom_boxplot(width=0.3,color ="yellow")+
+ geom_violin(width=2,alpha=0.5,color ="red")+
+ labs(x="Total Cases", y="Total Deaths")+
+ ggtitle("Total Cases vs Total Deaths")
+
+```
+
+```{r}
+ZomatoData <- read.csv("zomato.csv")
+```
+```{r}
+View(ZomatoData)
+```
+
+
+
+
+
